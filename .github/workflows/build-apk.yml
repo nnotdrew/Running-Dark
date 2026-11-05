@@ -41,7 +41,17 @@ jobs:
 
       - name: Generate app icon and splash screen
         run: npx capacitor-assets generate --android
-
+      - name: Use the permanent signing key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+            echo "Using saved signing key"
+          else
+            echo "::warning::DEBUG_KEYSTORE_B64 secret not set; this APK will not update over earlier builds"
+          fi
       - name: Build debug APK
         working-directory: android
         run: |
