@@ -1,6 +1,6 @@
 {
   "appId": "dev.blindspot.router",
-  "appName": "Blindspot",
+  "appName": "Running Dark",
   "webDir": "www",
   "android": {
     "adjustMarginsForEdgeToEdge": "auto"

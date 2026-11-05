@@ -1,4 +1,4 @@
-# Blindspot
+# Running Dark
 
 Driving routes that avoid ALPR cameras (Flock and others) mapped in OpenStreetMap, the dataset DeFlock displays. A Capacitor app: the UI is `www/index.html`, wrapped in a native Android shell.
 
@@ -6,7 +6,7 @@ Driving routes that avoid ALPR cameras (Flock and others) mapped in OpenStreetMa
 
 1. Create a new GitHub repo and push this folder to `main`.
 2. Open the repo's **Actions** tab. The **Build APK** workflow runs on every push (or start it by hand with **Run workflow**). It takes about 5 minutes.
-3. Open the finished run and download **blindspot-debug-apk** under Artifacts. It's a zip containing `app-debug.apk`.
+3. Open the finished run and download **running-dark-debug-apk** under Artifacts. It's a zip containing `app-debug.apk`.
 4. Install it on your phone (see "Installing" below).
 
 ## Option B: build locally with Android Studio
