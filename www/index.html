@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Blindspot Router</title>
+<title>Running Dark</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
@@ -32,16 +32,39 @@
 }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--f-body); }
-.app { display: grid; grid-template-columns: minmax(320px, 390px) 1fr; height: 100%; }
-.rail { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto;
-  padding-block: 20px 28px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: 18px;
-  display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-#map { height: 100%; background: var(--bg); }
+/* Desktop: inputs + details stacked in a left column, map on the right.
+   Phone: inputs, then map, then results and settings, in one scrolling column. */
+.app { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+.pane { background: var(--panel); border-right: 1px solid var(--line); min-width: 0;
+  padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: 18px;
+  display: flex; flex-direction: column; gap: 16px; }
+.pane.top { grid-column: 1; grid-row: 1; padding-block: 20px 16px; border-bottom: 1px solid var(--line); }
+.pane.bottom { grid-column: 1; grid-row: 2; padding-block: 16px 28px; overflow-y: auto; }
+#map { grid-column: 2; grid-row: 1 / 3; height: 100%; background: var(--bg); }
+.place { display: grid; gap: 5px; }
+.place-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.place-head > label { display: block; }
+select.saved { font-size: 13px; padding: 4px 8px; max-width: 60%; background: var(--panel); }
+.save-row { display: flex; gap: 6px; margin: 0; }
+.save-row input { flex: 1; }
+.save-row button { padding: 8px 10px; font-size: 13px; }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+details[open] > summary { margin-bottom: 12px; }
+details > fieldset { margin-bottom: 14px; }
+.places-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.places-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.places-list .pl-text { flex: 1; min-width: 0; }
+.places-list .pl-name { font-weight: 600; }
+.places-list .pl-addr { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.places-list button { padding: 6px 10px; font-size: 13px; }
+.places-list button.armed { background: var(--cam); border-color: var(--cam); color: var(--panel); }
 .leaflet-tile-pane { filter: var(--tile-filter); }
 h1 { font: 800 26px/1 var(--f-display); letter-spacing: -.01em; margin: 0; display: flex; align-items: center; gap: 10px; }
 h1 .sign { background: var(--route); color: var(--panel); font-size: 13px; padding: 4px 7px 2px; border-radius: 4px; letter-spacing: .04em; }
 .lede { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }
-fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+[hidden] { display: none !important; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
 label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 label.inline { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 14px; color: var(--ink); }
 input, select { font: 15px var(--f-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; }
@@ -73,38 +96,91 @@ td.num { font-family: var(--f-mono); }
 .leaflet-popup-content { font: 13px/1.4 var(--f-body); }
 .leaflet-popup-content code { font: 12px var(--f-mono); }
 .with-btn { display: flex; gap: 6px; }
-.with-btn input { flex: 1; }
+.with-btn input, .save-row input { flex: 1; width: 0; }
 .with-btn button { padding: 8px 10px; font-size: 13px; white-space: nowrap; }
 @media (max-width: 760px) {
-  .app { display: flex; flex-direction: column; height: auto; padding-top: env(safe-area-inset-top, 0px); }
-  #map { order: -1; height: 46vh; flex: none; }
-  .rail { border-right: 0; border-top: 1px solid var(--line); padding-right: max(18px, env(safe-area-inset-right, 0px));
-    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+  .app { display: flex; flex-direction: column; height: auto; }
+  .pane { border-right: 0; padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+  .pane.top { padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+  #map { height: 50vh; flex: none; border-bottom: 1px solid var(--line); }
+  .pane.bottom { overflow: visible; padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
 <div class="app">
-  <aside class="rail">
+  <section class="pane top">
     <header>
-      <h1>Blindspot <span class="sign">ALPR</span></h1>
+      <h1>Running Dark <span class="sign">ALPR</span></h1>
       <p class="lede">Driving routes that steer around license plate readers mapped in OpenStreetMap, the dataset behind DeFlock.</p>
     </header>
 
     <fieldset>
-      <label for="from">Start
-        <span class="with-btn">
+      <div class="place" data-field="from">
+        <div class="place-head">
+          <label for="from">Start</label>
+          <select class="saved" id="fromSaved" aria-label="Choose a saved place for Start"></select>
+        </div>
+        <div class="with-btn">
           <input id="from" value="Bradley University, Peoria, IL" autocomplete="off">
-          <button type="button" id="locate">My location</button>
-        </span>
-      </label>
-      <label for="to">Destination
-        <input id="to" value="General Wayne A. Downing Peoria International Airport" autocomplete="off">
-      </label>
-      <span class="hint">Type an address or <code>lat, lng</code>, or click the map to fill whichever box you used last.</span>
+          <button type="button" id="locate">Locate</button>
+          <button type="button" class="save-btn">Save</button>
+        </div>
+        <form class="save-row" hidden>
+          <input id="fromSaveName" placeholder="Name this place, e.g. Home" autocomplete="off" aria-label="Name for saved place">
+          <button type="submit" class="primary">Save</button>
+          <button type="button" class="cancel">Cancel</button>
+        </form>
+      </div>
+      <div class="place" data-field="to">
+        <div class="place-head">
+          <label for="to">Destination</label>
+          <select class="saved" id="toSaved" aria-label="Choose a saved place for Destination"></select>
+        </div>
+        <div class="with-btn">
+          <input id="to" value="General Wayne A. Downing Peoria International Airport" autocomplete="off">
+          <button type="button" class="save-btn">Save</button>
+        </div>
+        <form class="save-row" hidden>
+          <input id="toSaveName" placeholder="Name this place, e.g. Work" autocomplete="off" aria-label="Name for saved place">
+          <button type="submit" class="primary">Save</button>
+          <button type="button" class="cancel">Cancel</button>
+        </form>
+      </div>
+      <span class="hint">Type an address or <code>lat, lng</code>, pick a saved place, or tap the map to fill whichever box you used last.</span>
     </fieldset>
 
+    <button id="go" class="primary">Find camera-avoiding route</button>
+  </section>
+
+  <div id="map" role="region" aria-label="Map"></div>
+
+  <section class="pane bottom">
+    <section>
+      <p class="section-h">Progress</p>
+      <ul id="log"><li>Ready.</li></ul>
+    </section>
+
+    <section id="results">
+      <div class="empty">Results appear here: the fastest route, the camera-avoiding route, and a link that opens it in Google Maps.</div>
+    </section>
+
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--route)"></span>Avoiding route</span>
+      <span><span class="swatch" style="background:var(--fast)"></span>Fastest</span>
+      <span><span class="dot" style="background:var(--cam)"></span>Camera on route</span>
+      <span><span class="dot" style="background:var(--muted)"></span>Other camera</span>
+    </div>
+
+    <details id="placesBox">
+      <summary>Saved places (<span id="placesCount">0</span>)</summary>
+      <ul class="places-list" id="placesList"></ul>
+      <p class="empty" id="placesEmpty">No saved places yet. Type an address in Start or Destination and tap Save.</p>
+    </details>
+
+    <details>
+      <summary>Route settings</summary>
     <fieldset>
       <div class="row2">
         <label for="vendor">Avoid
@@ -140,26 +216,8 @@ td.num { font-family: var(--f-mono); }
         <span class="hint">Stored only in this browser. With Google routing, the exported Google Maps link follows the same roads the app checked.</span>
       </label>
     </fieldset>
-
-    <button id="go" class="primary">Find camera-avoiding route</button>
-
-    <section>
-      <p class="section-h">Progress</p>
-      <ul id="log"><li>Ready.</li></ul>
-    </section>
-
-    <section id="results">
-      <div class="empty">Results appear here: the fastest route, the camera-avoiding route, and a link that opens it in Google Maps.</div>
-    </section>
-
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--route)"></span>Avoiding route</span>
-      <span><span class="swatch" style="background:var(--fast)"></span>Fastest</span>
-      <span><span class="dot" style="background:var(--cam)"></span>Camera on route</span>
-      <span><span class="dot" style="background:var(--muted)"></span>Other camera</span>
-    </div>
-  </aside>
-  <div id="map" role="region" aria-label="Map"></div>
+    </details>
+  </section>
 </div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
@@ -196,10 +254,10 @@ $("#locate").addEventListener("click", async () => {
   const b = $("#locate"); b.disabled = true; b.textContent = "Locating…";
   try {
     const [lat, lng] = await currentPosition();
-    $("#from").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    setField($("#from"), `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
     map.setView([lat, lng], 14);
   } catch (err) { log(err.message || String(err), true); }
-  finally { b.disabled = false; b.textContent = "My location"; }
+  finally { b.disabled = false; b.textContent = "Locate"; }
 });
 
 async function openExternal(url) {
@@ -230,7 +288,123 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 const layers = { cams: L.layerGroup().addTo(map), fast: L.layerGroup().addTo(map), best: L.layerGroup().addTo(map), pins: L.layerGroup().addTo(map) };
 let lastField = $("#to");
 ["#from", "#to"].forEach(s => $(s).addEventListener("focus", e => lastField = e.target));
-map.on("click", e => { lastField.value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`; });
+map.on("click", e => setField(lastField, `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`));
+
+/* ---------- saved places ----------
+   Stored in localStorage and mirrored to Capacitor Preferences on Android,
+   so they survive if the WebView's storage is ever cleared. */
+const PLACES_KEY = "blindspot.places";
+let places = [];
+
+function readLocal() { try { return JSON.parse(store.get(PLACES_KEY) || "null"); } catch { return null; } }
+async function loadPlaces() {
+  let list = readLocal();
+  if (!Array.isArray(list) && Plug.Preferences) {
+    try { const { value } = await Plug.Preferences.get({ key: PLACES_KEY }); list = JSON.parse(value || "null"); } catch {}
+  }
+  places = Array.isArray(list) ? list.filter(p => p && p.name && Number.isFinite(p.lat) && Number.isFinite(p.lng)) : [];
+  renderPlaces();
+}
+function persistPlaces() {
+  const json = JSON.stringify(places);
+  store.set(PLACES_KEY, json);
+  if (Plug.Preferences) Plug.Preferences.set({ key: PLACES_KEY, value: json }).catch(() => {});
+}
+
+/* A field either holds free text (geocoded at search time) or a resolved place with coordinates. */
+function setField(input, text, place) {
+  input.value = text;
+  if (place) { input.dataset.lat = place.lat; input.dataset.lng = place.lng; }
+  else { delete input.dataset.lat; delete input.dataset.lng; }
+  const sel = document.getElementById(input.id + "Saved");
+  if (sel) sel.value = place?.id || "";
+}
+["#from", "#to"].forEach(s => $(s).addEventListener("input", e => {
+  delete e.target.dataset.lat; delete e.target.dataset.lng;
+  const sel = document.getElementById(e.target.id + "Saved"); if (sel) sel.value = "";
+}));
+async function resolveField(input) {
+  if (input.dataset.lat) return { pt: [parseFloat(input.dataset.lat), parseFloat(input.dataset.lng)], looked: false };
+  return { pt: await geocode(input.value), looked: !/^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$/.test(input.value) };
+}
+
+function renderPlaces() {
+  const sorted = [...places].sort((a, b) => a.name.localeCompare(b.name));
+  for (const sel of document.querySelectorAll("select.saved")) {
+    const keep = sel.value;
+    sel.innerHTML = `<option value="">${sorted.length ? "Saved places ▾" : "No saved places"}</option>` +
+      sorted.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+    sel.value = sorted.some(p => p.id === keep) ? keep : "";
+    sel.disabled = !sorted.length;
+  }
+  $("#placesCount").textContent = sorted.length;
+  $("#placesEmpty").hidden = sorted.length > 0;
+  $("#placesList").innerHTML = sorted.map(p => `
+    <li data-id="${esc(p.id)}">
+      <div class="pl-text"><div class="pl-name">${esc(p.name)}</div><div class="pl-addr">${esc(p.query)}</div></div>
+      <button type="button" class="use-from">Start</button>
+      <button type="button" class="use-to">Go here</button>
+      <button type="button" class="del">Delete</button>
+    </li>`).join("");
+}
+
+for (const sel of document.querySelectorAll("select.saved")) {
+  sel.addEventListener("change", () => {
+    const p = places.find(x => x.id === sel.value);
+    const input = document.getElementById(sel.id.replace("Saved", ""));
+    if (!p) return;
+    setField(input, p.name, p);
+    map.setView([p.lat, p.lng], Math.max(map.getZoom(), 13));
+  });
+}
+
+$("#placesList").addEventListener("click", e => {
+  const btn = e.target.closest("button"); if (!btn) return;
+  const id = btn.closest("li").dataset.id, p = places.find(x => x.id === id); if (!p) return;
+  if (btn.classList.contains("use-from")) setField($("#from"), p.name, p);
+  else if (btn.classList.contains("use-to")) setField($("#to"), p.name, p);
+  else if (btn.classList.contains("del")) {
+    if (!btn.classList.contains("armed")) {           // first tap arms, second tap deletes
+      btn.classList.add("armed"); btn.textContent = "Confirm";
+      setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "Delete"; }, 3000);
+      return;
+    }
+    places = places.filter(x => x.id !== id);
+    persistPlaces(); renderPlaces();
+    for (const f of ["#from", "#to"]) if ($(f).value === p.name && $(f).dataset.lat) setField($(f), p.query);
+    log(`Deleted "${p.name}".`);
+  }
+});
+
+for (const wrap of document.querySelectorAll(".place")) {
+  const input = $("#" + wrap.dataset.field), form = wrap.querySelector(".save-row"), nameIn = form.querySelector("input");
+  wrap.querySelector(".save-btn").addEventListener("click", () => {
+    if (!input.value.trim()) { log("Type an address first, then tap Save.", true); input.focus(); return; }
+    form.hidden = false;
+    nameIn.value = input.dataset.lat ? "" : input.value.split(",")[0].trim().slice(0, 40);
+    nameIn.focus(); nameIn.select();
+  });
+  form.querySelector(".cancel").addEventListener("click", () => { form.hidden = true; });
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = nameIn.value.trim();
+    if (!name) { nameIn.focus(); return; }
+    const saveBtn = form.querySelector("[type=submit]"); saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+    try {
+      const { pt } = await resolveField(input);
+      const existing = places.find(p => p.name.toLowerCase() === name.toLowerCase());
+      const query = existing && input.value === existing.name ? existing.query : input.value.trim();
+      const place = { id: existing?.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+        name, query, lat: pt[0], lng: pt[1] };
+      places = places.filter(p => p.id !== place.id).concat(place);
+      persistPlaces(); renderPlaces();
+      setField(input, place.name, place);
+      form.hidden = true;
+      log(`${existing ? "Updated" : "Saved"} "${name}".`);
+    } catch (err) { log(err.message || String(err), true); }
+    finally { saveBtn.disabled = false; saveBtn.textContent = "Save"; }
+  });
+}
 
 /* ---------- log ---------- */
 function log(msg, err) {
@@ -493,7 +667,7 @@ function googleUrl(A, B, vias) {
 }
 function gpx(route) {
   const pts = route.coords.map(c => `<trkpt lat="${c[0].toFixed(6)}" lon="${c[1].toFixed(6)}"/>`).join("");
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Blindspot Router" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>Camera-avoiding route</name><trkseg>${pts}</trkseg></trk></gpx>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Running Dark" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>Camera-avoiding route</name><trkseg>${pts}</trkseg></trk></gpx>`;
 }
 
 function renderResults(A, B, res, engine, outside) {
@@ -531,9 +705,9 @@ $("#go").addEventListener("click", async () => {
   if (engine === "google") store.set("blindspot.gkey", $("#gkey").value.trim());
   try {
     log("Looking up addresses…");
-    const A = await geocode($("#from").value);
-    await sleep(1100); // Nominatim allows 1 request per second
-    const B = await geocode($("#to").value);
+    const a = await resolveField($("#from"));
+    if (a.looked && !$("#to").dataset.lat) await sleep(1100); // Nominatim allows 1 request per second
+    const B = (await resolveField($("#to"))).pt, A = a.pt;
     layers.pins.clearLayers();
     L.marker(A).bindTooltip("Start").addTo(layers.pins);
     L.marker(B).bindTooltip("Destination").addTo(layers.pins);
@@ -569,6 +743,7 @@ $("#go").addEventListener("click", async () => {
     log(err.message || String(err), true);
   } finally { btn.disabled = false; }
 });
+loadPlaces();
 </script>
 </body>
 </html>
