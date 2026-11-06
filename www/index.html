@@ -16,7 +16,7 @@
   --line: #262C35; --line-soft: #1E232A;
   --ink: #E8EAED; --strong: #F2F4F6; --soft: #C9D0D8; --muted: #9AA3AE;
   --route: #4CC3F0; --route-ink: #06141A; --route-text: #7FD4F5; --route-soft: #10262F; --route-line: #1E4B5C;
-  --fast: #8A939E; --cam: #FF9142; --cam-soft: rgba(255,145,66,.16); --other: #6B7480; --danger: #FF7A6B;
+  --fast: #8A939E; --cam: #FF9142; --cam-soft: rgba(255,145,66,.16); --other: #8A939E; --danger: #FF7A6B;
   --tile-filter: invert(1) hue-rotate(180deg) brightness(.78) contrast(.92) saturate(.35);
   --f-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -52,7 +52,10 @@ svg { flex-shrink: 0; }
 .topbar { position: fixed; z-index: 30; left: 0; right: 0; top: 0; height: var(--bar-h);
   padding: var(--top) max(12px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px));
   background: var(--bg); border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 8px; }
-.brand { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-wrap { flex: 1; min-width: 0; display: flex; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 44px; padding: 0 6px 0 0; margin-left: -4px; padding-left: 4px;
+  background: transparent; border: 0; border-radius: 10px; }
+.brand:active { background: var(--card); }
 .brand span { font: 700 19px var(--f-display); letter-spacing: .01em; color: var(--strong); white-space: nowrap; }
 .tb-btn { height: 44px; padding: 0 14px 0 12px; display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .tb-icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; }
@@ -181,9 +184,11 @@ svg { flex-shrink: 0; }
 </head>
 <body>
 <nav class="topbar" aria-label="App">
-  <div class="brand">
+  <div class="brand-wrap">
+  <button type="button" class="brand" id="homeBtn" aria-label="Running Dark, back to the map">
     <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24"><g transform="rotate(45 12 12)"><path fill="#4CC3F0" d="M12 1.5 L23 17.5 L18.6 18.6 L16.2 16.6 L14.6 19.4 L16.8 22.4 L13.4 21 L12 19.8 L10.6 21 L7.2 22.4 L9.4 19.4 L7.8 16.6 L5.4 18.6 L1 17.5 Z"/><path fill="#0B0D10" d="M12 4.6 L13.1 8.4 L12 9.4 L10.9 8.4 Z"/><path fill="none" stroke="#0B0D10" stroke-width="0.6" stroke-linejoin="round" opacity="0.55" d="M12 9.4 L12 19.8 M12 9.4 L7.8 16.6 M12 9.4 L16.2 16.6"/></g></svg>
     <span>Running Dark</span>
+  </button>
   </div>
   <button type="button" class="tb-btn" id="savedBtn" aria-expanded="false" aria-controls="savedPanel">
     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7FD4F5" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
@@ -415,6 +420,7 @@ for (const [btn, panel] of PANELS) btn.addEventListener("click", () => {
   closePanels();
   if (open) { panel.hidden = false; btn.setAttribute("aria-expanded", "true"); }
 });
+$("#homeBtn").addEventListener("click", closePanels);  // tapping the title/logo returns to the map
 document.addEventListener("keydown", e => { if (e.key === "Escape") closePanels(); });
 /* Android back button closes an open panel instead of leaving the app. */
 if (NATIVE && Plug.App) Plug.App.addListener("backButton", ({ canGoBack }) => {
@@ -598,20 +604,21 @@ function camDirs(t) {
 }
 const isFlock = t => /flock/i.test([t.manufacturer, t.brand, t.name, t.operator].filter(Boolean).join(" "));
 
-async function fetchCams(bbox) {
+async function fetchCams(bbox, quiet) {
   const [s, w, n, e] = bbox.map(x => x.toFixed(5));
   const q = `[out:json][timeout:90];node["surveillance:type"="ALPR"](${s},${w},${n},${e});out body;`;
+  const say = quiet ? () => {} : log;
   for (const ep of OVERPASS) {
     try {
       const r = await fetch(ep, { method: "POST", body: "data=" + encodeURIComponent(q),
         headers: { "Content-Type": "application/x-www-form-urlencoded" } });
-      if (!r.ok) { log(`Overpass ${new URL(ep).host} returned ${r.status}, trying next`); continue; }
+      if (!r.ok) { say(`Overpass ${new URL(ep).host} returned ${r.status}, trying next`); continue; }
       const j = await r.json();
       return j.elements.filter(el => el.type === "node").map(el => {
         const tags = el.tags || {};
         return { id: el.id, lat: el.lat, lng: el.lon, tags, dirs: camDirs(tags), flock: isFlock(tags) };
       });
-    } catch (err) { log(`Overpass ${new URL(ep).host} unreachable, trying next`); }
+    } catch (err) { say(`Overpass ${new URL(ep).host} unreachable, trying next`); }
   }
   throw new Error("Couldn't reach any Overpass server. Try again in a minute.");
 }
@@ -773,23 +780,85 @@ const fmtMi = m => `${(m / 1609.344).toFixed(1)} mi`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
-function drawCams(cams, hitIds) {
+/* ---------- cameras on the map ----------
+   Cameras load for whatever area the map shows, not just after a route search.
+   Each one is a bright marker with a cone showing where it points (from the
+   OSM direction tag). Cameras on the current route get a ring around them. */
+const camCache = new Map();      // OSM node id -> camera, everything loaded so far
+const covered = [];              // [s, w, n, e] boxes already downloaded
+let camHits = new Set();         // cameras on the current best route
+const CONE_DEG = 60;             // assumed field of view; OSM doesn't record it
+const MIN_ZOOM_LOAD = 11;
+
+function addCams(list, bbox) { for (const c of list) camCache.set(c.id, c); if (bbox) covered.push(bbox); }
+const avoidsCam = c => $("#vendor").value !== "flock" || c.flock;
+function camPopup(c) {
+  const t = c.tags;
+  return `<strong>${esc(t.manufacturer || t.brand || "ALPR")}</strong><br>` +
+    (c.dirs ? `Facing ${c.dirs.map(d => Math.round(d) + "°").join(", ")}<br>` : "Direction not tagged<br>") +
+    `<a href="https://www.openstreetmap.org/node/${c.id}" target="_blank" rel="noopener">OSM node <code>${c.id}</code></a>`;
+}
+function cone(c, dir, len) {
+  const pts = [[c.lat, c.lng]];
+  for (let a = dir - CONE_DEG / 2; a <= dir + CONE_DEG / 2 + .01; a += 7.5)
+    pts.push(offset(c.lat, c.lng, Math.sin(a * D2R) * len, Math.cos(a * D2R) * len));
+  return pts;
+}
+function redrawCams() {
   layers.cams.clearLayers();
+  const z = map.getZoom(), view = map.getBounds().pad(0.5), center = map.getCenter();
+  const mPerPx = 40075016 * Math.cos(center.lat * D2R) / Math.pow(2, z + 8);
+  const len = Math.min(400, Math.max(55, 30 * mPerPx));   // ~30 px on screen, real-world 55-400 m
+  const showCones = z >= 12;
+  const cams = [...camCache.values()].filter(c => view.contains([c.lat, c.lng]));
+  const camCol = css("--cam"), otherCol = css("--other");
+  // Cones first so every marker sits on top of them.
+  if (showCones) for (const c of cams) {
+    const col = avoidsCam(c) ? camCol : otherCol, hit = camHits.has(c.id);
+    if (c.dirs) for (const d of c.dirs)
+      L.polygon(cone(c, d, len), { color: col, weight: 1.5, opacity: .9, fillColor: col, fillOpacity: hit ? .45 : .28, interactive: false }).addTo(layers.cams);
+    else
+      L.circle([c.lat, c.lng], { radius: len * .55, color: col, weight: 1, opacity: .6, dashArray: "3 4", fillColor: col, fillOpacity: .08, interactive: false }).addTo(layers.cams);
+  }
   for (const c of cams) {
-    const hit = hitIds.has(c.id);
-    const col = hit ? css("--cam") : css("--other");
-    if (c.dirs) for (const d of c.dirs) {
-      const tip = offset(c.lat, c.lng, Math.sin(d * D2R) * 45, Math.cos(d * D2R) * 45);
-      L.polyline([[c.lat, c.lng], tip], { color: col, weight: 2, opacity: .8, interactive: false }).addTo(layers.cams);
-    }
-    const t = c.tags;
-    L.circleMarker([c.lat, c.lng], { radius: hit ? 7 : 4, color: hit ? "#1A0E05" : col, fillColor: col, fillOpacity: hit ? 1 : .7, weight: hit ? 2 : 1 })
-      .bindPopup(`<strong>${esc(t.manufacturer || t.brand || "ALPR")}</strong><br>` +
-        (c.dirs ? `Facing ${c.dirs.map(d => d + "°").join(", ")}<br>` : "Direction not tagged<br>") +
-        `<a href="https://www.openstreetmap.org/node/${c.id}" target="_blank" rel="noopener">OSM node <code>${c.id}</code></a>`)
-      .addTo(layers.cams);
+    const avoid = avoidsCam(c), hit = camHits.has(c.id);
+    const col = avoid ? camCol : otherCol;
+    if (hit) L.circleMarker([c.lat, c.lng], { radius: 15, color: col, weight: 2.5, opacity: .9, fill: false, interactive: false }).addTo(layers.cams);
+    L.circleMarker([c.lat, c.lng], { radius: avoid ? (hit ? 8 : 7) : 5, color: "#0B0D10", weight: 2, fillColor: col, fillOpacity: 1 })
+      .bindPopup(camPopup(c)).addTo(layers.cams);
+  }
+  updateCamChip();
+}
+function updateCamChip() {
+  const chip = $("#camChip"), txt = $("#camChipText");
+  chip.hidden = false;
+  if (map.getZoom() < MIN_ZOOM_LOAD && !camCache.size) { txt.textContent = "Zoom in to see cameras"; return; }
+  const view = map.getBounds(), flockOnly = $("#vendor").value === "flock";
+  const n = [...camCache.values()].filter(c => avoidsCam(c) && view.contains([c.lat, c.lng])).length;
+  txt.textContent = `${plural(n, flockOnly ? "Flock camera" : "camera")} in view`;
+}
+/* Kept for the route search: draws everything loaded, highlighting `hitIds`. */
+function drawCams(_cams, hitIds) { if (hitIds) camHits = hitIds; redrawCams(); }
+
+let areaBusy = false, areaAgain = false;
+async function loadAreaCams() {
+  if (map.getZoom() < MIN_ZOOM_LOAD) { updateCamChip(); return; }
+  if ($("#sheet").classList.contains("working")) { redrawCams(); return; }  // the route search is downloading cameras already
+  const b = map.getBounds().pad(0.3);
+  const box = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()];
+  if (covered.some(r => r[0] <= box[0] && r[1] <= box[1] && r[2] >= box[2] && r[3] >= box[3])) { redrawCams(); return; }
+  if (areaBusy) { areaAgain = true; return; }
+  areaBusy = true; $("#camChipText").textContent = "Loading cameras…"; $("#camChip").hidden = false;
+  try { addCams(await fetchCams(box, true), box); }
+  catch { log("Couldn't load cameras for this area. Move the map to try again.", true); }
+  finally {
+    areaBusy = false; redrawCams();
+    if (areaAgain) { areaAgain = false; loadAreaCams(); }
   }
 }
+let areaTimer = 0;
+map.on("moveend", () => { redrawCams(); clearTimeout(areaTimer); areaTimer = setTimeout(loadAreaCams, 700); });
+$("#vendor").addEventListener("change", redrawCams);
 function drawRoutes(best, fastest) {
   layers.fast.clearLayers(); layers.best.clearLayers();
   if (fastest !== best) L.polyline(fastest.coords, { color: css("--fast"), weight: 5, opacity: .7, dashArray: "6 9" }).addTo(layers.fast);
@@ -870,11 +939,10 @@ $("#go").addEventListener("click", async () => {
 
     log("Downloading camera locations from OpenStreetMap…");
     let cams = await fetchCams(bbox);
+    addCams(cams, bbox);
     const totalAlpr = cams.length, flockOnly = $("#vendor").value === "flock";
     if (flockOnly) cams = cams.filter(c => c.flock);
     log(`${cams.length} ${flockOnly ? "Flock" : "ALPR"} cameras in area (${totalAlpr} ALPRs total).`);
-    $("#camChipText").textContent = `${plural(cams.length, flockOnly ? "Flock camera" : "camera")} in area`;
-    $("#camChip").hidden = false;
     drawCams(cams, new Set());
 
     const opts = {
@@ -902,6 +970,7 @@ $("#go").addEventListener("click", async () => {
   }
 });
 loadPlaces();
+loadAreaCams();
 </script>
 </body>
 </html>
